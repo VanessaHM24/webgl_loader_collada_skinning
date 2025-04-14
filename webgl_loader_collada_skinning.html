@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>three.js webgl - Collada skinning</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body { margin: 0; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./build/three.module.js",
+                "three/examples/jsm/": "./examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+        import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
+
+        let camera, scene, renderer, controls, avatar, mixer;
+
+        const clock = new THREE.Clock(); // Necesario para animaciones
+
+        init();
+        animate();
+
+        function init() {
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+            camera.position.set(50, 50, 50); // Ajustada para una mejor vista
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xbfd1e5);
+
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0); // Intensidad aumentada
+            hemiLight.position.set(0, 200, 0);
+            scene.add(hemiLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2); // Intensidad aumentada
+            dirLight.position.set(200, 200, 100);
+            dirLight.castShadow = true;
+            dirLight.shadow.camera.top = 180;
+            dirLight.shadow.camera.bottom = -100;
+            dirLight.shadow.camera.left = -120;
+            dirLight.shadow.camera.right = 120;
+            scene.add(dirLight);
+
+            // Ground
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshPhongMaterial({ color: 0x999999, depthWrite: false }));
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            const grid = new THREE.GridHelper(2000, 20, 0x000000, 0x000000);
+            grid.material.opacity = 0.2;
+            grid.material.transparent = true;
+            scene.add(grid);
+
+            // Model
+            const loader = new ColladaLoader();
+            loader.load('examples/models/collada/stormtrooper/stormtrooper.dae', function (collada) {
+                avatar = collada.scene;
+                console.log('Animaciones disponibles:', collada.animations); // Depuración
+                avatar.traverse(function (child) {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        console.log('Material del mesh:', child.material); // Depuración
+                        // Fuerza un material con color si no se ve (descomenta si necesario)
+                        // child.material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                    }
+                });
+                avatar.scale.set(0.1, 0.1, 0.1); // Escala inicial reducida (ajusta si es necesario)
+                avatar.position.set(0, 50, 0); // Posición sobre el suelo
+                scene.add(avatar);
+
+                // Configura animaciones si existen
+                if (collada.animations && collada.animations.length > 0) {
+                    mixer = new THREE.AnimationMixer(avatar);
+                    const action = mixer.clipAction(collada.animations[0]);
+                    action.play();
+                    console.log('Animación reproduciéndose:', action);
+                } else {
+                    console.log('No se encontraron animaciones en el modelo.');
+                }
+
+                const box = new THREE.Box3().setFromObject(avatar);
+                console.log('Tamaño del modelo (bounding box):', box);
+            }, undefined, function (error) {
+                console.error('Error al cargar el modelo Collada:', error);
+            });
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.target.set(0, 50, 0);
+            controls.update();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (mixer) mixer.update(clock.getDelta()); // Actualiza animaciones si existen
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
